@@ -50,6 +50,7 @@
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
+#include <time.h>
 
 #include <net/if.h>
 #include <netinet/in.h>
@@ -92,8 +93,8 @@ extern char     *send_buf;
 
 extern char     s1[];
 extern char     s2[];
-extern char		s3[];
-extern char		s4[];
+extern char     s3[];
+extern char     s4[];
 
 
 
@@ -125,7 +126,7 @@ void my_log( int Serverity, int Errno, const char *FmtSt, ... );
 // Define timer constants (in seconds...)
 #define INTERVAL_QUERY          125
 #define INTERVAL_QUERY_RESPONSE  10
-//#define INTERVAL_QUERY_RESPONSE  10
+#define INTERVAL_LASTMEMBER_QUERY 1
 
 #define ROUTESTATE_NOTJOINED            0   // The group corresponding to route is not joined
 #define ROUTESTATE_JOINED               1   // The group corresponding to route is joined
@@ -142,15 +143,15 @@ struct SubnetList {
 
 struct IfDesc {
     char                Name[IF_NAMESIZE];
-    struct in_addr      InAdr;          /* == 0 for non IP interfaces */            
+    struct in_addr      InAdr;          /* == 0 for non IP interfaces */
     short               Flags;
     short               state;
+    short               index;
+    uint8_t             robustness;
+    uint8_t             threshold;   /* ttl limit */
+    unsigned int        ratelimit;
     struct SubnetList*  allowednets;
     struct SubnetList*  allowedgroups;
-    unsigned int        robustness;
-    unsigned char       threshold;   /* ttl limit */
-    unsigned int        ratelimit; 
-    unsigned int        index;
 };
 
 // Keeps common configuration settings 
@@ -165,7 +166,7 @@ struct Config {
     unsigned int        lastMemberQueryInterval;
     unsigned int        lastMemberQueryCount;
     // Set if upstream leave messages should be sent instantly..
-    unsigned short      fastUpstreamLeave;
+    unsigned int        fastUpstreamLeave;
 };
 
 // Defines the Index of the upstream VIF...
@@ -176,15 +177,15 @@ extern int upStreamVif;
 void buildIfVc( void );
 struct IfDesc *getIfByName( const char *IfName );
 struct IfDesc *getIfByIx( unsigned Ix );
-struct IfDesc *getIfByAddress( uint32_t Ix );
+struct IfDesc *getIfByAddress( uint32_t ipaddr );
 int isAdressValidForIf(struct IfDesc* intrface, uint32_t ipaddr);
 
 /* mroute-api.c
  */
 struct MRouteDesc {
+    vifi_t          InVif;
+    uint8_t         TtlVc[ MAX_MC_VIFS ];
     struct in_addr  OriginAdr, McAdr;
-    short           InVif;
-    uint8_t           TtlVc[ MAX_MC_VIFS ];
 };
 
 // IGMP socket as interface for the mrouted API
@@ -208,6 +209,7 @@ struct Config *getCommonConfig();
 */
 extern uint32_t allhosts_group;
 extern uint32_t allrouters_group;
+extern uint32_t alligmp3_group;
 void initIgmp(void);
 void acceptIgmp(int);
 void sendIgmp (uint32_t, uint32_t, int, int, uint32_t,int);

@@ -71,17 +71,16 @@ int         upStreamVif;
 */    
 int main( int ArgCn, char *ArgVc[] ) {
 
+    int c;
+
     // Parse the commandline options and setup basic settings..
-    for (int c; (c = getopt(ArgCn, ArgVc, "vdh")) != -1;) {
+    while ((c = getopt(ArgCn, ArgVc, "vdh")) != -1) {
         switch (c) {
         case 'd':
             Log2Stderr = true;
             break;
         case 'v':
-            if (LogLevel == LOG_INFO)
-                LogLevel = LOG_DEBUG;
-            else
-                LogLevel = LOG_INFO;
+            LogLevel++;
             break;
         case 'h':
             fputs(Usage, stderr);
@@ -123,6 +122,20 @@ int main( int ArgCn, char *ArgVc[] ) {
             my_log(LOG_ERR, 0, "Unable to initialize IGMPproxy.");
             break;
         }
+
+	if ( !Log2Stderr ) {
+
+	    // Only daemon goes past this line...
+	    if (fork()) exit(0);
+
+	    // Detach daemon from terminal
+	    if ( close( 0 ) < 0 || close( 1 ) < 0 || close( 2 ) < 0
+		 || open( "/dev/null", 0 ) != 0 || dup2( 0, 1 ) < 0 || dup2( 0, 2 ) < 0
+		 || setpgrp() < 0
+	       ) {
+		my_log( LOG_ERR, errno, "failed to detach daemon" );
+	    }
+	}
 
         // Go to the main loop.
         igmpProxyRun();
@@ -176,7 +189,7 @@ int igmpProxyInit() {
 
         for ( Ix = 0; (Dp = getIfByIx(Ix)); Ix++ ) {
 
-            if ( Dp->InAdr.s_addr && ! (Dp->Flags & IFF_LOOPBACK) ) {
+            if ( Dp->InAdr.s_addr && ! (Dp->Flags & IFF_LOOPBACK) && Dp->state != IF_STATE_DISABLED ) {
                 if(Dp->state == IF_STATE_UPSTREAM) {
                     if(upStreamVif == -1) {
                         upStreamVif = Ix;
@@ -186,10 +199,8 @@ int igmpProxyInit() {
                     }
                 }
 
-                if (Dp->state != IF_STATE_DISABLED) {
-                    addVIF( Dp );
-                    vifcount++;
-                }
+                addVIF( Dp );
+                vifcount++;
             }
         }
 
@@ -224,6 +235,26 @@ void igmpProxyCleanUp() {
 }
 
 /**
+*   Get current time.
+*/
+int igmpProxyTime(struct timeval *tv)
+{
+#ifdef HAVE_CLOCK_MONOTONIC
+	struct timespec tp;
+
+	if (clock_gettime(CLOCK_MONOTONIC, &tp) < 0)
+		return -1;
+
+	tv->tv_sec = tp.tv_sec;
+	tv->tv_usec = tp.tv_nsec / 1000;
+
+	return 0;
+#else
+	return gettimeofday(tv, NULL);
+#endif
+}
+
+/**
 *   Main daemon loop.
 */
 void igmpProxyRun() {
@@ -240,7 +271,7 @@ void igmpProxyRun() {
 
     // Initialize timer vars
     difftime.tv_usec = 0;
-    gettimeofday(&curtime, NULL);
+    igmpProxyTime(&curtime);
     lasttime = curtime;
 
     // First thing we send a membership query in downstream VIF's...
@@ -303,14 +334,14 @@ void igmpProxyRun() {
             /*
              * If the select timed out, then there's no other
              * activity to account for and we don't need to
-             * call gettimeofday.
+             * call igmpProxyTime.
              */
             if (Rt == 0) {
                 curtime.tv_sec = lasttime.tv_sec + secs;
                 curtime.tv_usec = lasttime.tv_usec;
                 Rt = -1; /* don't do this next time through the loop */
             } else {
-                gettimeofday(&curtime, NULL);
+                igmpProxyTime(&curtime);
             }
             difftime.tv_sec = curtime.tv_sec - lasttime.tv_sec;
             difftime.tv_usec += curtime.tv_usec - lasttime.tv_usec;

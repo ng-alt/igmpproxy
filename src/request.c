@@ -100,7 +100,7 @@ void acceptGroupReport(uint32_t src, uint32_t group, uint8_t type) {
 	my_log(LOG_INFO, 0, "The group address %s may not be requested from this interface. Ignoring.", inetFmt(group, s1));
     } else {
         // Log the state of the interface the report was recieved on.
-        my_log(LOG_INFO, 0, "Mebership report was recieved on %s. Ignoring.",
+        my_log(LOG_INFO, 0, "Membership report was recieved on %s. Ignoring.",
             sourceVif->state==IF_STATE_UPSTREAM?"the upstream interface":"a disabled interface");
     }
 
@@ -194,7 +194,7 @@ void sendGroupSpecificMemberQuery(void *argument) {
 void sendGeneralMembershipQuery() {
     struct  Config  *conf = getCommonConfig();
     struct  IfDesc  *Dp;
-    int             Ix;
+    unsigned        Ix;
 
     // Loop through all downstream vifs...
     for ( Ix = 0; (Dp = getIfByIx(Ix)); Ix++ ) {

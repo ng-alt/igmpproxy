@@ -78,7 +78,7 @@ void initCommonConfig() {
     commonConfig.startupQueryCount = DEFAULT_ROBUSTNESS;
 
     // Default values for leave intervals...
-    commonConfig.lastMemberQueryInterval = INTERVAL_QUERY_RESPONSE;
+    commonConfig.lastMemberQueryInterval = INTERVAL_LASTMEMBER_QUERY;
     commonConfig.lastMemberQueryCount    = DEFAULT_ROBUSTNESS;
 
     // If 1, a leave message is sent upstream on leave messages from downstream.
@@ -333,6 +333,7 @@ struct vifconfig *parsePhyintToken() {
 
     // Clean up after a parseerror...
     if(parseError) {
+        free(tmpPtr->name);
         free(tmpPtr);
         tmpPtr = NULL;
     }
@@ -357,15 +358,18 @@ struct SubnetList *parseSubnetAddress(char *addrstr) {
     tmpStr = strtok(NULL, "/");
     if(tmpStr != NULL) {
         int bitcnt = atoi(tmpStr);
-        if(bitcnt <= 0 || bitcnt > 32) {
+        if(bitcnt < 0 || bitcnt > 32) {
             my_log(LOG_WARNING, 0, "The bits part of the address is invalid : %d.",tmpStr);
             return NULL;
         }
 
-        mask <<= (32 - bitcnt);
+	if (bitcnt == 0)
+	    mask = 0;
+	else
+    	    mask <<= (32 - bitcnt);
     }
 
-    if(addr == -1 || addr == 0) {
+    if(addr == -1) {
         my_log(LOG_WARNING, 0, "Unable to parse address token '%s'.", addrstr);
         return NULL;
     }
